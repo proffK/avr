@@ -11,7 +11,7 @@
     .def counter = R17
     .def stop_digit = R18
     .def time_over_flag = R19
-    .def am_flag = R20
+    .def flag_20h = R20
     .equ digit_port = PORTD
     .equ digit_ddr = DDRD
     .equ clk_port = PORTC
@@ -139,14 +139,12 @@ digit: .byte digit_num
         
 TIMER0_OVF:
         
-        ldi temp, 0
+        ldi temp, 0xFF
         out digit_port, temp
-        sbis clk_port, digit_num - 1
+        sbic clk_port, digit_num - 1
         rjmp LAST_DIGIT
         lsl counter
-        com counter
         out clk_port, counter
-        com counter
 CONTINUE:
         ld temp, -X
         rcall digit_convert
@@ -156,9 +154,7 @@ CONTINUE:
 LAST_DIGIT:
 
         ldi counter, 0b00000001           ;if cur digit is last, then 
-        com counter
         out clk_port, counter             ;input first digit
-        com counter
         ldi XL, low(digit + digit_num)
         ldi XH, high(digit + digit_num)
         rjmp CONTINUE
@@ -185,12 +181,13 @@ TIMER1_COMPA:
         rcall inc_time
         cpi time_over_flag, 0
         breq TIMER1_END
-        ldi stop_digit, 3
+        rcall check_20h
         rcall inc_time
         cpi time_over_flag, 0
         breq TIMER1_END
         ldi stop_digit, 2
         rcall inc_time
+
 TIMER1_END:
         clr temp
         sts TCNT1H, temp
@@ -238,9 +235,7 @@ INIT:
         out digit_ddr, temp
         
         ldi counter, (1 << (digit_num - 1))
-        com counter
         out clk_port, counter
-        com counter
 
         ;ldi XH, high(digit)
         ;ldi XL, low(digit)
@@ -251,7 +246,7 @@ INIT:
 
         ldi temp, (1 << TOIE0)             ;Timer clk init
         sts TIMSK0, temp
-        ldi temp, (1 << CS01|1 << CS00)
+        ldi temp, (1 << CS01 | 1 << CS00)
         out TCCR0B, temp
 
         ldi temp, (1 << OCIE1A)
@@ -271,7 +266,24 @@ MAIN:
 
 ;==============================================================================
 ;Subroutines
-
+check_20h:
+        
+        subi XL, 2
+        sbci XH, 0
+        ld temp, X
+        cpi temp, 2
+        breq is_20h
+        ldi stop_digit, 9
+check_cont:
+        ldi temp, 2
+        add XL, temp
+        clr temp
+        adc XH, temp
+        ret
+is_20h:
+        ldi stop_digit, 3
+        rjmp check_cont
+        
 inc_time:
         
         ld temp, -X
@@ -286,7 +298,7 @@ time_not_end:
         st X, temp
         ldi time_over_flag, 0
         ret
-
+        
 digit_convert:
         
         push ZH
@@ -306,16 +318,16 @@ digit_convert:
 
 digit_array:
         
-        .db 0b00111111,\
-            0b00000110,\
-            0b01011011,\
-            0b01001111,\
-            0b01100110,\
-            0b01101101,\
-            0b01111101,\
-            0b00000111,\
-            0b01111111,\
-            0b01101111
+        .db 0b11000000,\
+            0b11111001,\
+            0b10100100,\
+            0b10110000,\
+            0b10011001,\
+            0b10010010,\
+            0b10000010,\
+            0b11111000,\
+            0b10000000,\
+            0b10010000
 ;End Subroutines
 ;==============================================================================
         
